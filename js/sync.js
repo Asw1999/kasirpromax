@@ -68,11 +68,39 @@ const Sync = (() => {
     ]);
   }
 
+  // ── MERGE HELPER (put per-item tanpa clear) ──────────────────
+  async function _mergeToStore(store, items) {
+    if (items.length === 0) return;
+    const db = await DB.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(store, 'readwrite');
+      const s  = tx.objectStore(store);
+      items.forEach(item => s.put(item));
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => reject(tx.error);
+    });
+  }
+
   // ── PULL (cloud → lokal) ─────────────────────────────────────
   async function pull() {
     if (!isConfigured() || !navigator.onLine) return;
     try {
       await initTables();
+
+      // Kumpulkan ID yang masih pending di queue — data ini milik lokal,
+      // jangan ditimpa cloud sampai berhasil di-push.
+      const pendingQueue = await DB.getQueue();
+      const pendingProductIds     = new Set();
+      const pendingTransactionIds = new Set();
+      for (const op of pendingQueue) {
+        if (['upsertProduct',  'deleteProduct',  'replaceProducts'].includes(op.type))
+          (op.data ? (Array.isArray(op.data) ? op.data : [op.data]) : []).forEach(d => pendingProductIds.add(d.id));
+        if (op.type === 'deleteProduct')
+          pendingProductIds.add(op.id);
+        if (['upsertTransaction', 'deleteTransaction'].includes(op.type))
+          pendingTransactionIds.add(op.data?.id ?? op.id);
+      }
+
       const results = await _sql([
         { sql: 'SELECT * FROM products ORDER BY name ASC' },
         { sql: 'SELECT * FROM transactions ORDER BY dateISO DESC' },
@@ -92,13 +120,19 @@ const Sync = (() => {
         _rows(results[2]).map(r => [r.key, r.value === 'true' ? true : r.value === 'false' ? false : r.value])
       );
 
-      // Simpan ke IndexedDB
-      if (prods.length > 0) await DB.putAll('products', prods);
-      if (trxs.length  > 0) await DB.putAll('transactions', trxs);
+      // Filter: skip item yang punya pending op di queue (lokal lebih baru)
+      const safeProds = prods.filter(p => !pendingProductIds.has(p.id));
+      const safeTrxs  = trxs.filter(t => !pendingTransactionIds.has(t.id));
+
+      // Merge ke IndexedDB — put per-item, tidak clear() data lokal
+      await _mergeToStore('products', safeProds);
+      await _mergeToStore('transactions', safeTrxs);
       if (Object.keys(sets).length > 0) await DB.saveSettings(sets);
 
+      const skipped = (prods.length - safeProds.length) + (trxs.length - safeTrxs.length);
       _setStatus('synced');
-      console.log(`[Sync] Pull selesai: ${prods.length} produk, ${trxs.length} transaksi`);
+      console.log(`[Sync] Pull selesai: ${safeProds.length} produk, ${safeTrxs.length} transaksi` +
+        (skipped > 0 ? ` (${skipped} item di-skip karena pending push)` : ''));
     } catch (e) {
       console.warn('[Sync] Pull gagal:', e.message);
       _setStatus('error');
