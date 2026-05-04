@@ -124,18 +124,27 @@ const Sync = (() => {
       const safeProds = prods.filter(p => !pendingProductIds.has(p.id));
       const safeTrxs  = trxs.filter(t => !pendingTransactionIds.has(t.id));
 
+      // Hitung pending per-tabel untuk notifikasi
+      const pendingProds = prods.length - safeProds.length;
+      const pendingTrxs  = trxs.length  - safeTrxs.length;
+
       // Merge ke IndexedDB — put per-item, tidak clear() data lokal
       await _mergeToStore('products', safeProds);
       await _mergeToStore('transactions', safeTrxs);
       if (Object.keys(sets).length > 0) await DB.saveSettings(sets);
 
-      const skipped = (prods.length - safeProds.length) + (trxs.length - safeTrxs.length);
-      _setStatus('synced');
+      const skipped = pendingProds + pendingTrxs;
+      _setStatus('synced', {
+        products:            'ok',
+        transactions:        'ok',
+        pendingProducts:     pendingProds,
+        pendingTransactions: pendingTrxs,
+      });
       console.log(`[Sync] Pull selesai: ${safeProds.length} produk, ${safeTrxs.length} transaksi` +
         (skipped > 0 ? ` (${skipped} item di-skip karena pending push)` : ''));
     } catch (e) {
       console.warn('[Sync] Pull gagal:', e.message);
-      _setStatus('error');
+      _setStatus('error', { products: 'error', transactions: 'error' });
     }
   }
 
@@ -147,18 +156,42 @@ const Sync = (() => {
       if (queue.length === 0) return;
 
       await initTables();
+
+      // Hitung pending per-tabel sebelum push
+      let pendingProds = 0, pendingTrxs = 0;
+      for (const op of queue) {
+        if (['upsertProduct','deleteProduct','replaceProducts'].includes(op.type)) pendingProds++;
+        if (['upsertTransaction','deleteTransaction'].includes(op.type)) pendingTrxs++;
+      }
+      _setStatus('syncing', {
+        products:            pendingProds > 0 ? 'syncing' : 'ok',
+        transactions:        pendingTrxs > 0 ? 'syncing' : 'ok',
+        pendingProducts:     pendingProds,
+        pendingTransactions: pendingTrxs,
+      });
+
       for (const op of queue) {
         try {
           await _executeOp(op);
           await DB.dequeue(op.qid);
+          // Kurangi counter setelah berhasil
+          if (['upsertProduct','deleteProduct','replaceProducts'].includes(op.type))
+            pendingProds = Math.max(0, pendingProds - 1);
+          if (['upsertTransaction','deleteTransaction'].includes(op.type))
+            pendingTrxs = Math.max(0, pendingTrxs - 1);
         } catch (e) {
           console.warn('[Sync] Op gagal:', op.type, e.message);
         }
       }
-      _setStatus('synced');
+      _setStatus('synced', {
+        products:            pendingProds === 0 ? 'ok' : 'error',
+        transactions:        pendingTrxs === 0 ? 'ok' : 'error',
+        pendingProducts:     pendingProds,
+        pendingTransactions: pendingTrxs,
+      });
     } catch (e) {
       console.warn('[Sync] Push gagal:', e.message);
-      _setStatus('error');
+      _setStatus('error', { products: 'error', transactions: 'error' });
     }
   }
 
@@ -198,24 +231,187 @@ const Sync = (() => {
     }
   }
 
-  // ── STATUS INDICATOR ─────────────────────────────────────────
-  function _setStatus(status) {
+  // ── SYNC STATE TRACKER ───────────────────────────────────────
+  const _state = {
+    global: 'offline',      // syncing | synced | error | offline
+    products: 'idle',       // idle | syncing | ok | error
+    transactions: 'idle',
+    pendingProducts: 0,
+    pendingTransactions: 0,
+  };
+
+  // ── CONFLICT NOTIFICATION ─────────────────────────────────────
+  function _showConflictBanner(pendingCount) {
+    let banner = document.getElementById('syncConflictBanner');
+
+    if (pendingCount === 0) {
+      if (banner) banner.remove();
+      return;
+    }
+
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'syncConflictBanner';
+      banner.style.cssText = `
+        position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
+        z-index: 9999; display: flex; align-items: center; gap: 8px;
+        background: #1e293b; color: #f8fafc; font-size: 12px; font-weight: 600;
+        padding: 8px 14px; border-radius: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        border: 1px solid rgba(251,191,36,0.4);
+        animation: slideUp 0.3s ease;
+        cursor: pointer;
+      `;
+      // Inject animation jika belum ada
+      if (!document.getElementById('syncBannerStyle')) {
+        const style = document.createElement('style');
+        style.id = 'syncBannerStyle';
+        style.textContent = `
+          @keyframes slideUp {
+            from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+            to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+          }
+        `;
+        document.head.appendChild(style);
+      }
+      // Klik banner → tap icon sync untuk detail
+      banner.onclick = () => {
+        document.getElementById('syncStatus')?.click();
+      };
+      document.body.appendChild(banner);
+    }
+
+    const plural = pendingCount === 1 ? 'item' : 'item';
+    banner.innerHTML = `
+      <i class="fas fa-clock-rotate-left" style="color:#fbbf24;font-size:11px"></i>
+      <span>${pendingCount} ${plural} lokal belum tersync</span>
+      <i class="fas fa-chevron-up" style="font-size:9px;opacity:0.5"></i>
+    `;
+  }
+
+  // ── STATUS INDICATOR (rich) ───────────────────────────────────
+  function _setStatus(status, opts = {}) {
+    _state.global = status;
+    if (opts.products    !== undefined) _state.products    = opts.products;
+    if (opts.transactions !== undefined) _state.transactions = opts.transactions;
+    if (opts.pendingProducts    !== undefined) _state.pendingProducts    = opts.pendingProducts;
+    if (opts.pendingTransactions !== undefined) _state.pendingTransactions = opts.pendingTransactions;
+
+    const totalPending = _state.pendingProducts + _state.pendingTransactions;
+    _showConflictBanner(totalPending);
+
     const el = document.getElementById('syncStatus');
     if (!el) return;
-    const map = {
-      syncing: { icon: 'fa-sync fa-spin', color: 'text-blue-400',  title: 'Menyinkronkan...' },
-      synced:  { icon: 'fa-cloud',        color: 'text-green-400', title: 'Tersinkron'        },
-      error:   { icon: 'fa-cloud',        color: 'text-red-400',   title: 'Gagal sync'        },
-      offline: { icon: 'fa-wifi-slash',   color: 'text-slate-400', title: 'Offline'           },
+
+    // Icon global
+    const globalMap = {
+      syncing: { icon: 'fa-sync fa-spin', color: '#60a5fa' },
+      synced:  { icon: 'fa-cloud-arrow-up', color: '#4ade80' },
+      error:   { icon: 'fa-cloud',          color: '#f87171' },
+      offline: { icon: 'fa-wifi-slash',     color: '#94a3b8' },
     };
-    const s = map[status] || map.offline;
-    el.innerHTML = `<i class="fas ${s.icon} ${s.color} text-xs" title="${s.title}"></i>`;
+    const g = globalMap[status] || globalMap.offline;
+
+    // Badge pending
+    const badgeHtml = totalPending > 0
+      ? `<span style="
+            position:absolute;top:-2px;right:-2px;
+            background:#f59e0b;color:#000;
+            font-size:8px;font-weight:800;
+            width:14px;height:14px;border-radius:50%;
+            display:flex;align-items:center;justify-content:center;
+            line-height:1;
+          ">${totalPending > 9 ? '9+' : totalPending}</span>`
+      : '';
+
+    el.style.position = 'relative';
+    el.innerHTML = `
+      <i class="fas ${g.icon}" style="color:${g.color};font-size:13px"></i>
+      ${badgeHtml}
+    `;
+    el.title = _buildTooltip(status);
+
+    // Popup detail on click (toggle)
+    el.style.cursor = 'pointer';
+    el.onclick = _toggleDetailPopup;
+  }
+
+  function _buildTooltip(status) {
+    const labels = { syncing:'Menyinkronkan...', synced:'Tersinkron', error:'Gagal sync', offline:'Offline' };
+    const pending = _state.pendingProducts + _state.pendingTransactions;
+    let t = labels[status] || 'Offline';
+    if (pending > 0) t += ` · ${pending} pending`;
+    return t;
+  }
+
+  // ── DETAIL POPUP (per-tabel) ──────────────────────────────────
+  function _toggleDetailPopup() {
+    let popup = document.getElementById('syncDetailPopup');
+    if (popup) { popup.remove(); return; }
+
+    popup = document.createElement('div');
+    popup.id = 'syncDetailPopup';
+    popup.style.cssText = `
+      position: fixed; top: 60px; right: 12px; z-index: 9999;
+      background: #0f172a; color: #f1f5f9;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px; padding: 14px 16px;
+      font-size: 12px; font-weight: 600;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      min-width: 200px;
+      animation: fadeIn 0.2s ease;
+    `;
+    if (!document.getElementById('syncPopupStyle')) {
+      const style = document.createElement('style');
+      style.id = 'syncPopupStyle';
+      style.textContent = `@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }`;
+      document.head.appendChild(style);
+    }
+
+    const statusIcon = (s, pending) => {
+      if (s === 'syncing') return `<i class="fas fa-sync fa-spin" style="color:#60a5fa"></i>`;
+      if (s === 'error')   return `<i class="fas fa-triangle-exclamation" style="color:#f87171"></i>`;
+      if (pending > 0)     return `<i class="fas fa-clock-rotate-left" style="color:#fbbf24"></i>`;
+      return `<i class="fas fa-check" style="color:#4ade80"></i>`;
+    };
+
+    const rowHtml = (label, tableStatus, pending) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+        <span style="opacity:0.7">${label}</span>
+        <span style="display:flex;align-items:center;gap:5px">
+          ${statusIcon(tableStatus, pending)}
+          ${pending > 0 ? `<span style="color:#fbbf24">${pending} pending</span>` : `<span style="color:#4ade80">OK</span>`}
+        </span>
+      </div>
+    `;
+
+    const globalLabel = { syncing:'Menyinkronkan...', synced:'Tersinkron', error:'Gagal sync', offline:'Offline' };
+    popup.innerHTML = `
+      <div style="font-size:11px;opacity:0.4;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Sync Status</div>
+      ${rowHtml('Produk', _state.products, _state.pendingProducts)}
+      ${rowHtml('Transaksi', _state.transactions, _state.pendingTransactions)}
+      <div style="margin-top:10px;display:flex;justify-content:space-between;opacity:0.5;font-size:10px">
+        <span>${globalLabel[_state.global] || 'Offline'}</span>
+        <span>${new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</span>
+      </div>
+    `;
+
+    document.body.appendChild(popup);
+    // Tutup jika klik di luar
+    setTimeout(() => {
+      document.addEventListener('click', function handler(e) {
+        if (!popup.contains(e.target) && e.target.id !== 'syncStatus') {
+          popup.remove();
+          document.removeEventListener('click', handler);
+        }
+      });
+    }, 100);
   }
 
   // ── PUBLIC ───────────────────────────────────────────────────
   async function syncAll() {
     if (!isConfigured()) return;
-    _setStatus('syncing');
+    _setStatus('syncing', { products: 'syncing', transactions: 'syncing' });
     await push();
     await pull();
   }
@@ -231,7 +427,7 @@ const Sync = (() => {
 
   // Listen event online
   window.addEventListener('online',  () => { syncAll(); });
-  window.addEventListener('offline', () => { _setStatus('offline'); });
+  window.addEventListener('offline', () => { _setStatus('offline', { products: 'idle', transactions: 'idle' }); });
 
   return { syncAll, enqueue, isConfigured };
 })();

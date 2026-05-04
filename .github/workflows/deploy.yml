@@ -22,14 +22,25 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4.2.2        # ✅ Fix: hapus duplikat "uses:"
+        uses: actions/checkout@v4.2.2
 
       - name: Inject BUILD_TIMESTAMP ke sw.js
         run: |
           BUILD_TS=$(date +%s)
           echo "BUILD_TIMESTAMP = $BUILD_TS"
-          sed -i "s/__BUILD_TS__/$BUILD_TS/g" sw.js   # ✅ Fix: sw.js ada di root
+          sed -i "s/__BUILD_TS__/$BUILD_TS/g" sw.js
           grep "CACHE_NAME" sw.js
+
+      # ✅ FIX: Paksa browser reload file JS/CSS terbaru dengan ?v=<commit_sha>
+      - name: Inject cache-bust version ke index.html
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "Injecting version: $SHORT_SHA"
+          # Tambah ?v=<sha> di setiap <script src="js/..."> dan <link href="css/...">
+          sed -i "s|src=\"js/\([^\"]*\)\"|src=\"js/\1?v=$SHORT_SHA\"|g" index.html
+          sed -i "s|href=\"css/\([^\"]*\)\"|href=\"css/\1?v=$SHORT_SHA\"|g" index.html
+          echo "✅ Cache bust done:"
+          grep -E 'src="js/|href="css/' index.html
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v4
@@ -37,7 +48,7 @@ jobs:
       - name: Upload ke Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .                            # ✅ Fix: upload dari root, bukan ./frontend
+          path: .
 
       - name: Deploy ke GitHub Pages
         id: deployment
