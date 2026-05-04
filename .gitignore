@@ -1,0 +1,12 @@
+# Dependencies
+backend/node_modules/
+
+# Environment (JANGAN di-commit, berisi password!)
+backend/.env
+
+# Data lokal (sudah pindah ke MongoDB, folder ini tidak dipakai)
+backend/data/
+
+# OS files
+.DS_Store
+Thumbs.db
