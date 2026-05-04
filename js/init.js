@@ -59,19 +59,33 @@ window.addEventListener('DOMContentLoaded', async () => {
           const nw = reg.installing;
           if (!nw) return;
           nw.addEventListener('statechange', () => {
-            if (nw.state === 'installed' && navigator.serviceWorker.controller)
-              showUpdateBanner(nw);
+            // Kirim SKIP_WAITING agar SW baru langsung aktif tanpa tunggu tab ditutup
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[SW] Update ditemukan, menerapkan otomatis...');
+              nw.postMessage({ type: 'SKIP_WAITING' });
+            }
           });
         });
       })
       .catch(e => console.warn('[SW] Failed:', e));
 
+    // Auto-reload saat controller berganti (SW baru aktif)
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!refreshing) { refreshing = true; window.location.reload(); }
     });
+
+    // Fallback: terima pesan SW_UPDATED dari activate event di sw.js
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'SW_UPDATED' && !refreshing) {
+        refreshing = true;
+        console.log('[SW] SW_UPDATED diterima, reload halaman...');
+        window.location.reload();
+      }
+    });
   }
 
+  // showUpdateBanner tetap ada sebagai fallback manual jika auto-reload gagal
   function showUpdateBanner(worker) {
     const banner = document.getElementById('swUpdateBanner');
     if (!banner) return;

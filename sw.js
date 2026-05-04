@@ -68,6 +68,12 @@ self.addEventListener('activate', (event) => {
         console.log('[SW] Service Worker activated!');
         return self.clients.claim(); // Ambil kontrol semua tab yang terbuka
       })
+      .then(() => {
+        // Beritahu semua tab bahwa SW baru sudah aktif → init.js akan auto-reload
+        self.clients.matchAll({ type: 'window' }).then(clients => {
+          clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }));
+        });
+      })
   );
 });
 

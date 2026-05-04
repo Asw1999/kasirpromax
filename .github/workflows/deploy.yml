@@ -1,0 +1,53 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+# Izin untuk deploy ke GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Cegah deploy bersamaan — kalau ada push baru, batalkan yang lama
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # ──────────────────────────────────────────────────────────
+      # INJECT BUILD TIMESTAMP ke sw.js
+      # Ini yang bikin browser deteksi "SW baru" setiap kali push.
+      # Tanpa step ini, sw.js byte-nya tidak berubah → browser
+      # tidak tahu ada update → user stuck di versi lama.
+      # ──────────────────────────────────────────────────────────
+      - name: Inject BUILD_TIMESTAMP ke sw.js
+        run: |
+          BUILD_TS=$(date +%s)
+          echo "BUILD_TIMESTAMP = $BUILD_TS"
+          sed -i "s/__BUILD_TS__/$BUILD_TS/g" frontend/sw.js
+          # Verifikasi hasilnya
+          grep "CACHE_NAME" frontend/sw.js
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload frontend ke Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./frontend   # Upload folder frontend/ saja, bukan root
+
+      - name: Deploy ke GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
