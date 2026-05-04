@@ -8,4 +8,4 @@
 window.TURSO_URL   = 'https://kasirpromax-asw1999.aws-ap-northeast-1.turso.io';
 
 // Turso auth token — dari dashboard Turso → Connect → Token
-window.TURSO_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Nzc4MTk1NTYsImlkIjoiMDE5ZGVlNGItNDcwMS03OTMxLWIzNTAtNGNiZGNlNGFkOTJjIiwicmlkIjoiYTIyNTg2ZDktNTBhMC00MTI5LThkODctZWY3MDQ4ODhlN2JlIn0.9dEzVXInGiy8p42Y-n_eno01_X1eQFqWH1i7UwKsrsTkRjnJ8BfoUUrYcSFgj-cwK_yXWtYSTfygcq52MIxvAw';
+window.TURSO_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Nzc4OTg2MDQsImlkIjoiMDE5ZGYzMDMtYWUwMS03NzNhLWEwZGQtMjA3ZjVjOWIxMWY3IiwicmlkIjoiZTdmNDA2ODItM2EzYy00NjNjLWE5ZjgtYWI1NzgyOTc3YmJjIn0.7BR3OuWoUkDV5o2_j7BbZRnnQccHUrpl1UjM9k-UBnWth575gu6mqOZhFyLkzMpQSeYdjdf08KG_QhNvnN2lAw';
