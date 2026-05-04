@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: uses: actions/checkout@v4.2.2
 
       # ──────────────────────────────────────────────────────────
       # INJECT BUILD TIMESTAMP ke sw.js
