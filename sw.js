@@ -42,8 +42,10 @@ self.addEventListener('install', (event) => {
           });
       })
       .then(() => {
-        console.log('[SW] Installation complete!');
-        return self.skipWaiting(); // Aktifkan SW baru langsung tanpa tunggu tab ditutup
+        console.log('[SW] Installation complete — waiting for user confirmation.');
+        // ⚠️ Sengaja TIDAK skipWaiting() di sini.
+        // SW baru masuk state "installed/waiting" → updatefound di init.js detect →
+        // popup muncul → user tekan Update → SKIP_WAITING dikirim → baru aktif.
       })
   );
 });
@@ -65,14 +67,9 @@ self.addEventListener('activate', (event) => {
         );
       })
       .then(() => {
-        console.log('[SW] Service Worker activated!');
-        return self.clients.claim(); // Ambil kontrol semua tab yang terbuka
-      })
-      .then(() => {
-        // Beritahu semua tab bahwa SW baru sudah aktif → init.js akan auto-reload
-        self.clients.matchAll({ type: 'window' }).then(clients => {
-          clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }));
-        });
+        console.log('[SW] Activated & old caches cleared!');
+        // clients.claim() → picu controllerchange di init.js → page reload otomatis
+        return self.clients.claim();
       })
   );
 });

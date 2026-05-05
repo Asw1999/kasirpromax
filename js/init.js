@@ -50,50 +50,76 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (el) el.style.display = 'none';
   }
 
-  // ── SERVICE WORKER ─────────────────────────────────────────
+  // ── SERVICE WORKER (Combo A+B) ────────────────────────────
+  // Strategi: deteksi update otomatis (A), tampilkan popup pilihan (B).
+  // User bisa pilih update sekarang atau nanti — aman untuk kasir yang
+  // sedang transaksi. Auto-reload hanya terjadi setelah user konfirmasi.
   if ('serviceWorker' in navigator) {
+    let pendingWorker = null;
+
     navigator.serviceWorker.register('./sw.js')
       .then(reg => {
         console.log('[SW] Registered:', reg.scope);
+
+        // Cek update setiap 30 detik — lebih responsif
+        setInterval(() => reg.update(), 30 * 1000);
+
+        // Kalau SW sudah waiting saat halaman dibuka (misal tab lama)
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          pendingWorker = reg.waiting;
+          _showUpdatePopup(reg.waiting);
+        }
+
         reg.addEventListener('updatefound', () => {
           const nw = reg.installing;
           if (!nw) return;
           nw.addEventListener('statechange', () => {
-            // Kirim SKIP_WAITING agar SW baru langsung aktif tanpa tunggu tab ditutup
             if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('[SW] Update ditemukan, menerapkan otomatis...');
-              nw.postMessage({ type: 'SKIP_WAITING' });
+              console.log('[SW] Update ditemukan, menunggu konfirmasi user...');
+              pendingWorker = nw;
+              _showUpdatePopup(nw);
             }
           });
         });
       })
-      .catch(e => console.warn('[SW] Failed:', e));
+      .catch(e => console.warn('[SW] Registrasi gagal:', e));
 
-    // Auto-reload saat controller berganti (SW baru aktif)
+    // Reload halaman saat controller berganti (dipicu setelah SKIP_WAITING)
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!refreshing) { refreshing = true; window.location.reload(); }
     });
-
-    // Fallback: terima pesan SW_UPDATED dari activate event di sw.js
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data?.type === 'SW_UPDATED' && !refreshing) {
-        refreshing = true;
-        console.log('[SW] SW_UPDATED diterima, reload halaman...');
-        window.location.reload();
-      }
-    });
   }
 
-  // showUpdateBanner tetap ada sebagai fallback manual jika auto-reload gagal
-  function showUpdateBanner(worker) {
+  // Tampilkan popup "Update Tersedia" — user pilih update atau nanti
+  function _showUpdatePopup(worker) {
     const banner = document.getElementById('swUpdateBanner');
     if (!banner) return;
-    banner.classList.remove('hidden');
+
+    // Tombol Update → kirim SKIP_WAITING → SW aktif → controllerchange → reload
     document.getElementById('swUpdateBtn').onclick = () => {
-      worker.postMessage({ type: 'SKIP_WAITING' });
       banner.classList.add('hidden');
+      worker.postMessage({ type: 'SKIP_WAITING' });
     };
+
+    // Tombol Nanti → sembunyikan banner, ingatkan lagi 5 menit kemudian
+    let dismissBtn = document.getElementById('swDismissBtn');
+    if (!dismissBtn) {
+      dismissBtn = document.createElement('button');
+      dismissBtn.id = 'swDismissBtn';
+      dismissBtn.textContent = 'Nanti';
+      dismissBtn.className = 'text-white/70 text-xs font-bold px-2 py-2 active:opacity-50';
+      document.getElementById('swUpdateBtn').insertAdjacentElement('afterend', dismissBtn);
+    }
+    dismissBtn.onclick = () => {
+      banner.classList.add('hidden');
+      // Ingatkan lagi 5 menit kemudian kalau user belum update
+      setTimeout(() => {
+        if (worker.state !== 'activated') _showUpdatePopup(worker);
+      }, 5 * 60 * 1000);
+    };
+
+    banner.classList.remove('hidden');
   }
 
   // ── PWA INSTALL BANNER ─────────────────────────────────────
