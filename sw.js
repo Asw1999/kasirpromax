@@ -42,10 +42,8 @@ self.addEventListener('install', (event) => {
           });
       })
       .then(() => {
-        console.log('[SW] Installation complete — waiting for user confirmation.');
-        // ⚠️ Sengaja TIDAK skipWaiting() di sini.
-        // SW baru masuk state "installed/waiting" → updatefound di init.js detect →
-        // popup muncul → user tekan Update → SKIP_WAITING dikirim → baru aktif.
+        console.log('[SW] Installation complete — auto activating immediately.');
+        return self.skipWaiting();
       })
   );
 });
