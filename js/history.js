@@ -28,7 +28,13 @@ function renderHistory() {
         return;
     }
 
-    list.innerHTML = [...filtered].reverse().map(t => {
+    list.innerHTML = [...filtered].sort((a, b) => {
+        const da = a.dateISO || '';
+        const db = b.dateISO || '';
+        if (db !== da) return db.localeCompare(da);
+        // fallback: bandingkan by id (timestamp-based) descending
+        return String(b.id).localeCompare(String(a.id));
+    }).map(t => {
         const mc = methodColors[t.payMethod || 'TUNAI'] || methodColors.TUNAI;
         return `
         <div class="bg-white p-5 rounded-[2rem] border border-slate-100 card-shadow">
