@@ -40,7 +40,12 @@ function refreshDashboard() {
 
 function _renderRecent() {
     const list   = document.getElementById('recentList');
-    const recent = transactions.slice(-3).reverse();
+    // FIX: sort by dateISO descending dulu sebelum ambil 3 teratas.
+    // slice(-3) tidak reliable karena transaksi baru di-push ke akhir array,
+    // sementara data lama dimuat sorted descending — hasilnya bisa tampil transaksi terlama.
+    const recent = [...transactions]
+        .sort((a, b) => (b.dateISO || '').localeCompare(a.dateISO || '') || (b.id || '').localeCompare(a.id || ''))
+        .slice(0, 3);
 
     if (recent.length === 0) {
         list.innerHTML = '<p class="text-xs text-slate-400 italic">Belum ada transaksi</p>';

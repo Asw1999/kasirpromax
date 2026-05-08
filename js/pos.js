@@ -168,6 +168,7 @@ function openCheckout() {
     selectPayMethod(currentPayMethod);
     renderQuickAmounts();
     calcChange();
+    initCustomerAutocomplete();
 }
 
 function removeFromCart(idx) {

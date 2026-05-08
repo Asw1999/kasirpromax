@@ -22,6 +22,7 @@ function switchView(view) {
         pos:       'Kasir Utama',
         inventory: 'Gudang Barang',
         history:   'Laporan Finansial',
+        customers: 'Database Pelanggan',
     };
     document.getElementById('viewTitle').innerText = titles[view] || '';
 
@@ -29,6 +30,7 @@ function switchView(view) {
     if (view === 'pos')       renderPosProducts();
     if (view === 'inventory') renderInventory();
     if (view === 'history')   renderHistory();
+    if (view === 'customers') renderCustomers();
 
     updateCartUI();
 }

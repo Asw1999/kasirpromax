@@ -6,13 +6,20 @@
 
 const API = (() => {
 
+  // ── ID GENERATOR (anti-collision) ─────────────────────────
+  // Date.now() * 1000 + random(0–998) → ~16-digit integer, aman di JS Number,
+  // tidak collision bahkan saat ratusan produk diimport dalam 1ms yang sama.
+  function genId() {
+    return Date.now() * 1000 + Math.floor(Math.random() * 999);
+  }
+
   // ── PRODUCTS ─────────────────────────────────────────────────
   async function getProducts() {
     return DB.getAll('products').then(p => p.sort((a, b) => a.name.localeCompare(b.name)));
   }
 
   async function createProduct(data) {
-    const p = { ...data, id: Date.now(), cost: Number(data.cost) || 0, price: Number(data.price) };
+    const p = { ...data, id: genId(), cost: Number(data.cost) || 0, price: Number(data.price) };
     await DB.put('products', p);
     await Sync.enqueue({ type: 'upsertProduct', data: p });
     return p;
@@ -44,7 +51,7 @@ const API = (() => {
 
     if (mode === 'reset') {
       existing = imported.map((p, i) => ({
-        ...p, id: p.id || Date.now() + i,
+        ...p, id: p.id || genId(),
         cost: Number(p.cost) || 0, price: Number(p.price),
       }));
       inserted = existing.length;
@@ -61,7 +68,7 @@ const API = (() => {
             updated++;
           }
         } else {
-          const np = { ...p, id: p.id || Date.now() + i, cost: Number(p.cost)||0, price: Number(p.price) };
+          const np = { ...p, id: p.id || genId(), cost: Number(p.cost)||0, price: Number(p.price) };
           existing.push(np);
           nameMap.set(key, np);
           inserted++;
@@ -115,9 +122,43 @@ const API = (() => {
     return merged;
   }
 
+  // ── CUSTOMERS ─────────────────────────────────────────────────
+  async function getCustomers() {
+    const list = await DB.getAll('customers');
+    return list.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async function createCustomer(data) {
+    const c = {
+      ...data,
+      id:       crypto.randomUUID(),
+      joinDate: new Date().toISOString().split('T')[0],
+    };
+    await DB.put('customers', c);
+    await Sync.enqueue({ type: 'upsertCustomer', data: c });
+    return c;
+  }
+
+  async function updateCustomer(id, data) {
+    const list = await DB.getAll('customers');
+    const idx  = list.findIndex(c => c.id === id);
+    if (idx === -1) throw new Error('Pelanggan tidak ditemukan');
+    const updated = { ...list[idx], ...data, id };
+    await DB.put('customers', updated);
+    await Sync.enqueue({ type: 'upsertCustomer', data: updated });
+    return updated;
+  }
+
+  async function deleteCustomer(id) {
+    await DB.del('customers', id);
+    await Sync.enqueue({ type: 'deleteCustomer', id });
+    return { success: true };
+  }
+
   return {
     getProducts, createProduct, updateProduct, deleteProduct, importProducts,
     getTransactions, createTransaction, updateTransaction, deleteTransaction,
     getSettings, saveSettings,
+    getCustomers, createCustomer, updateCustomer, deleteCustomer,
   };
 })();

@@ -5,6 +5,7 @@
 let products     = [];
 let cart         = [];
 let transactions = [];
+let customers    = [];   // database pelanggan / member
 let settings     = {
   shop: 'WARUNG PINTAR', address: '', phone: '', cashier: 'Admin', showTunaiKembali: true,
 };
@@ -19,14 +20,16 @@ async function loadAllData() {
     // Buka IndexedDB dulu
     await DB.open();
 
-    const [prods, trxs, sets] = await Promise.all([
+    const [prods, trxs, sets, custs] = await Promise.all([
       API.getProducts(),
       API.getTransactions(),
       API.getSettings(),
+      API.getCustomers(),
     ]);
     products     = prods;
     transactions = trxs;
     settings     = sets;
+    customers    = custs;
   } catch (e) {
     console.error('[data] Gagal load data:', e.message);
     throw e;

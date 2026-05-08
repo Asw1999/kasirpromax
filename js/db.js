@@ -5,7 +5,7 @@
 
 const DB = (() => {
   const DB_NAME    = 'kasirpromax';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;   // bump: tambah object store 'customers'
   let _db = null;
 
   // ── OPEN / INIT ─────────────────────────────────────────────
@@ -16,15 +16,18 @@ const DB = (() => {
 
       req.onupgradeneeded = e => {
         const db = e.target.result;
+        // v1 stores (dibuat jika belum ada)
         if (!db.objectStoreNames.contains('products'))
           db.createObjectStore('products', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('transactions'))
           db.createObjectStore('transactions', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('settings'))
           db.createObjectStore('settings', { keyPath: 'key' });
-        // Queue untuk operasi yang belum tersync ke cloud
         if (!db.objectStoreNames.contains('syncQueue'))
           db.createObjectStore('syncQueue', { keyPath: 'qid', autoIncrement: true });
+        // v2 — database pelanggan / member
+        if (!db.objectStoreNames.contains('customers'))
+          db.createObjectStore('customers', { keyPath: 'id' });
       };
 
       req.onsuccess  = e => { _db = e.target.result; resolve(_db); };

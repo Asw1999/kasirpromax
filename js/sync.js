@@ -65,6 +65,10 @@ const Sync = (() => {
           payMethod TEXT DEFAULT 'TUNAI', updated_at INTEGER DEFAULT 0)` },
       { sql: `CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY, value TEXT NOT NULL)` },
+      { sql: `CREATE TABLE IF NOT EXISTS customers (
+          id TEXT PRIMARY KEY, name TEXT NOT NULL,
+          phone TEXT DEFAULT '', notes TEXT DEFAULT '',
+          joinDate TEXT DEFAULT '', updated_at INTEGER DEFAULT 0)` },
     ]);
   }
 
@@ -105,6 +109,7 @@ const Sync = (() => {
         { sql: 'SELECT * FROM products ORDER BY name ASC' },
         { sql: 'SELECT * FROM transactions ORDER BY dateISO DESC' },
         { sql: 'SELECT key, value FROM settings' },
+        { sql: 'SELECT * FROM customers ORDER BY name ASC' },
       ]);
 
       const prods = _rows(results[0]).map(p => ({
@@ -119,10 +124,20 @@ const Sync = (() => {
       const sets = Object.fromEntries(
         _rows(results[2]).map(r => [r.key, r.value === 'true' ? true : r.value === 'false' ? false : r.value])
       );
+      const custs = _rows(results[3]).map(c => ({
+        id: c.id, name: c.name, phone: c.phone || '',
+        notes: c.notes || '', joinDate: c.joinDate || '',
+      }));
 
       // Filter: skip item yang punya pending op di queue (lokal lebih baru)
       const safeProds = prods.filter(p => !pendingProductIds.has(p.id));
       const safeTrxs  = trxs.filter(t => !pendingTransactionIds.has(t.id));
+      const pendingCustomerIds = new Set();
+      for (const op of pendingQueue) {
+        if (['upsertCustomer', 'deleteCustomer'].includes(op.type))
+          pendingCustomerIds.add(op.data?.id ?? op.id);
+      }
+      const safeCusts = custs.filter(c => !pendingCustomerIds.has(c.id));
 
       // Hitung pending per-tabel untuk notifikasi
       const pendingProds = prods.length - safeProds.length;
@@ -131,6 +146,7 @@ const Sync = (() => {
       // Merge ke IndexedDB — put per-item, tidak clear() data lokal
       await _mergeToStore('products', safeProds);
       await _mergeToStore('transactions', safeTrxs);
+      await _mergeToStore('customers', safeCusts);
       if (Object.keys(sets).length > 0) await DB.saveSettings(sets);
 
       const skipped = pendingProds + pendingTrxs;
@@ -221,6 +237,14 @@ const Sync = (() => {
         break;
       case 'deleteTransaction':
         await _sql([{ sql: 'DELETE FROM transactions WHERE id=?', args: [op.id] }]);
+        break;
+      case 'upsertCustomer':
+        await _sql([{ sql: 'INSERT OR REPLACE INTO customers VALUES (?,?,?,?,?,?)',
+          args: [op.data.id, op.data.name, op.data.phone ?? '',
+                 op.data.notes ?? '', op.data.joinDate ?? '', now] }]);
+        break;
+      case 'deleteCustomer':
+        await _sql([{ sql: 'DELETE FROM customers WHERE id=?', args: [op.id] }]);
         break;
       case 'saveSettings':
         const sStmts = Object.entries(op.data).map(([k, v]) => ({

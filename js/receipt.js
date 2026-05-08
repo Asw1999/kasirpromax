@@ -26,12 +26,13 @@ function processAndPreview() {
 
     window.pendingTrx = {
         id: trxId, date: dateStr,
-        dateISO:   new Date().toISOString().split('T')[0],
+        dateISO:    new Date().toISOString().split('T')[0],
         atasNama,
-        items:     [...cart],
+        customerId: window._selectedCustomerId || null,
+        items:      [...cart],
         total, profit, pay,
-        change:    isCash ? pay - total : 0,
-        payMethod: currentPayMethod,
+        change:     isCash ? pay - total : 0,
+        payMethod:  currentPayMethod,
     };
     window.currentTrxId = trxId;
 
