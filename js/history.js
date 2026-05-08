@@ -3,6 +3,22 @@
 //               Export/Import Backup Data
 // ═══════════════════════════════════════════════════════════════
 
+// ── HELPER: parse timestamp dari transaksi untuk sorting ──────
+// Coba parse field `date` (format id-ID: "7/5/2026, 21.06.29")
+// Fallback ke dateISO (tanggal saja), fallback ke 0
+function trxTimestamp(t) {
+    if (t.date) {
+        // Format: "D/M/YYYY, HH.MM.SS" atau "D/M/YYYY HH.MM.SS"
+        const m = t.date.match(/(\d+)\/(\d+)\/(\d+)[,\s]+(\d+)[.:](\d+)[.:](\d+)/);
+        if (m) {
+            const [, d, mo, y, h, min, s] = m;
+            return new Date(+y, +mo - 1, +d, +h, +min, +s).getTime();
+        }
+    }
+    if (t.dateISO) return new Date(t.dateISO).getTime();
+    return 0;
+}
+
 // ── RENDER HISTORY ────────────────────────────────────────────
 function renderHistory() {
     const list       = document.getElementById('fullHistoryList');
@@ -28,13 +44,7 @@ function renderHistory() {
         return;
     }
 
-    list.innerHTML = [...filtered].sort((a, b) => {
-        const da = a.dateISO || '';
-        const db = b.dateISO || '';
-        if (db !== da) return db.localeCompare(da);
-        // fallback: bandingkan by id (timestamp-based) descending
-        return String(b.id).localeCompare(String(a.id));
-    }).map(t => {
+    list.innerHTML = [...filtered].sort((a, b) => trxTimestamp(b) - trxTimestamp(a)).map(t => {
         const mc = methodColors[t.payMethod || 'TUNAI'] || methodColors.TUNAI;
         return `
         <div class="bg-white p-5 rounded-[2rem] border border-slate-100 card-shadow">

@@ -26,7 +26,7 @@ function processAndPreview() {
 
     window.pendingTrx = {
         id: trxId, date: dateStr,
-        dateISO:    new Date().toISOString().split('T')[0],
+        dateISO:    new Date().toISOString(),
         atasNama,
         customerId: window._selectedCustomerId || null,
         items:      [...cart],
