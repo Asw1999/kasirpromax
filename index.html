@@ -155,8 +155,34 @@
         <div id="fullHistoryList" class="space-y-3"></div>
     </section>
 
+    <!-- ════════════════════════════════════════════════════════ -->
+    <!--  VIEW: PELANGGAN                                         -->
+    <!-- ════════════════════════════════════════════════════════ -->
+    <section id="view-customers" class="hidden p-4 space-y-4 no-print">
+        <div class="flex justify-between items-center">
+            <div>
+                <h2 class="font-bold text-lg">Database Pelanggan</h2>
+                <p id="customerCount" class="text-xs text-slate-400 font-bold">0 pelanggan</p>
+            </div>
+            <button onclick="openCustomerModal()"
+                class="ripple-btn w-11 h-11 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-200 text-xl font-bold active:scale-90 transition-transform">
+                +
+            </button>
+        </div>
+
+        <!-- Search -->
+        <div class="relative">
+            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-sm"></i>
+            <input type="text" id="searchCustomer" placeholder="Cari nama atau no. HP..."
+                class="w-full pl-10 pr-4 py-3.5 bg-white border border-slate-100 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-blue-500"
+                oninput="renderCustomers()">
+        </div>
+
+        <div id="customerList" class="space-y-3 pb-24"></div>
+    </section>
+
     <!-- BOTTOM NAVIGATION -->
-    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-lg border-t border-slate-100 p-4 flex justify-around items-center no-print z-40">
+    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-lg border-t border-slate-100 p-3 flex justify-around items-center no-print z-40">
         <button onclick="switchView('home')" class="nav-item flex flex-col items-center gap-1 active-nav" data-path="home">
             <i class="fas fa-home-alt text-lg"></i>
             <span class="text-[9px] font-bold uppercase">Beranda</span>
@@ -168,6 +194,10 @@
         <button onclick="switchView('inventory')" class="nav-item flex flex-col items-center gap-1 text-slate-400" data-path="inventory">
             <i class="fas fa-box text-lg"></i>
             <span class="text-[9px] font-bold uppercase">Produk</span>
+        </button>
+        <button onclick="switchView('customers')" class="nav-item flex flex-col items-center gap-1 text-slate-400" data-path="customers">
+            <i class="fas fa-users text-lg"></i>
+            <span class="text-[9px] font-bold uppercase">Member</span>
         </button>
         <button onclick="switchView('history')" class="nav-item flex flex-col items-center gap-1 text-slate-400" data-path="history">
             <i class="fas fa-chart-line text-lg"></i>
@@ -204,13 +234,20 @@
             <div class="flex justify-between font-bold text-slate-400 text-sm"><span>Subtotal</span><span id="checkSubtotal">Rp 0</span></div>
             <div class="flex justify-between font-black text-2xl text-blue-600"><span>TOTAL</span><span id="checkTotal">Rp 0</span></div>
         </div>
-        <div class="mb-5">
-            <label class="text-xs font-black text-slate-400 uppercase tracking-widest block mb-2">
-                Atas Nama <span class="text-slate-300 normal-case font-normal">(opsional)</span>
-            </label>
-            <input type="text" id="atasNamaInput" placeholder="Nama pembeli / pelanggan..."
-                class="w-full p-4 bg-slate-100 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-blue-500">
-        </div>
+            <div class="mb-5">
+                <label class="text-xs font-black text-slate-400 uppercase tracking-widest block mb-2">
+                    Atas Nama <span class="text-slate-300 normal-case font-normal">(opsional)</span>
+                </label>
+                <div class="relative">
+                    <input type="text" id="atasNamaInput" placeholder="Nama pembeli / cari member..."
+                        class="w-full p-4 bg-slate-100 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-blue-500"
+                        autocomplete="off">
+                    <!-- Dropdown autocomplete pelanggan -->
+                    <div id="customerDropdown"
+                        class="hidden absolute z-10 w-full mt-1 bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+                    </div>
+                </div>
+            </div>
         <div class="mb-5">
             <label class="text-xs font-black text-slate-400 uppercase tracking-widest block mb-3">Metode Pembayaran</label>
             <div class="flex" id="payMethodBtns">
@@ -437,7 +474,43 @@
 <!-- ╚══════════════════════════════════════════╝ -->
 <script src="js/config.js"></script>   <!-- ⚙️  Turso URL & Token — edit untuk cloud sync -->
 <script src="js/db.js"></script>       <!-- IndexedDB offline storage -->
-<script src="js/sync.js"></script>     <!-- Turso cloud sync engine -->
+<!-- MODAL: TAMBAH / EDIT PELANGGAN -->
+<div id="customerModal" class="fixed inset-0 bg-black/60 z-[60] hidden flex items-center justify-center p-6 no-print">
+    <div style="animation:modalPop 0.3s cubic-bezier(0.34,1.56,0.64,1) both"
+         class="bg-white w-full max-w-sm rounded-[2.5rem] p-7 shadow-2xl">
+        <div class="flex justify-between items-center mb-6">
+            <h3 id="customerModalTitle" class="text-xl font-black">Tambah Pelanggan</h3>
+            <button onclick="closeModal('customerModal')"
+                class="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
+                <i class="fas fa-times text-sm"></i>
+            </button>
+        </div>
+        <input type="hidden" id="custEditId">
+        <div class="space-y-3 mb-6">
+            <div>
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Nama Pelanggan *</label>
+                <input type="text" id="custName" placeholder="Contoh: Budi Santoso"
+                    class="w-full p-4 bg-slate-100 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">No. HP / WhatsApp</label>
+                <input type="tel" id="custPhone" placeholder="0812-xxxx-xxxx"
+                    class="w-full p-4 bg-slate-100 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Catatan</label>
+                <input type="text" id="custNotes" placeholder="Contoh: pelanggan setia, suka kopi"
+                    class="w-full p-4 bg-slate-100 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <button onclick="closeModal('customerModal')" class="bg-slate-100 text-slate-400 py-4 rounded-2xl font-bold">BATAL</button>
+            <button onclick="saveCustomer()" class="bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-transform">SIMPAN</button>
+        </div>
+    </div>
+</div>
+
+     <!-- Turso cloud sync engine -->
 <script src="js/api.js"></script>      <!-- offline-first API layer -->
 <script src="js/helpers.js"></script>   <!-- toast, customConfirm, customAlert, fmtInput, etc -->
 <script src="js/data.js"></script>      <!-- state: products, cart, transactions, settings -->
@@ -447,6 +520,7 @@
 <script src="js/inventory.js"></script> <!-- product CRUD, export/import -->
 <script src="js/history.js"></script>   <!-- riwayat, edit trx, export CSV/JSON, import -->
 <script src="js/receipt.js"></script>   <!-- editor resi, print, bluetooth ESC/POS -->
+<script src="js/customers.js"></script> <!-- database pelanggan / member -->
 <script src="js/settings.js"></script>  <!-- settings modal + barcode scanner -->
 <script src="js/init.js"></script>      <!-- app boot, service worker, install banner -->
 
