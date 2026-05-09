@@ -249,7 +249,7 @@ function _lpStart(e, productId) {
         // Prevent click event yang akan muncul setelah touchend
         e.target.closest('[data-pid]')?.addEventListener('click', _blockNextClick, { once: true, capture: true });
         openQtyModal(productId);
-    }, 450); // 450ms = long press
+    }, 800); // 800ms = long press (diperpanjang untuk menghindari salah tekan)
 }
 
 function _lpEnd() {
