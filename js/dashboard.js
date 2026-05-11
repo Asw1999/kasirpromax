@@ -2,6 +2,38 @@
 //  dashboard.js — Dashboard Stats, Chart, Recent Transactions
 // ═══════════════════════════════════════════════════════════════
 
+let _dashPeriod = 'today';
+
+function setDashPeriod(period) {
+    _dashPeriod = period;
+    const btnToday = document.getElementById('btnPeriodToday');
+    const btnWeek  = document.getElementById('btnPeriodWeek');
+    if (period === 'today') {
+        btnToday.className = 'px-3 py-1.5 rounded-xl text-[11px] font-black transition-all bg-white text-blue-600 shadow-sm';
+        btnWeek.className  = 'px-3 py-1.5 rounded-xl text-[11px] font-black transition-all text-slate-400';
+    } else {
+        btnWeek.className  = 'px-3 py-1.5 rounded-xl text-[11px] font-black transition-all bg-white text-blue-600 shadow-sm';
+        btnToday.className = 'px-3 py-1.5 rounded-xl text-[11px] font-black transition-all text-slate-400';
+    }
+    refreshDashboard();
+}
+
+function _getFilteredTrans() {
+    const today = new Date().toISOString().split('T')[0];
+    if (_dashPeriod === 'today') {
+        return transactions.filter(t =>
+            t.dateISO ? t.dateISO === today : t.date.includes(new Date().toLocaleDateString('id-ID'))
+        );
+    }
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - 6);
+    weekStart.setHours(0, 0, 0, 0);
+    return transactions.filter(t => {
+        const d = t.dateISO ? new Date(t.dateISO) : null;
+        return d && d >= weekStart;
+    });
+}
+
 function countUp(elId, target, duration = 600) {
     const el = document.getElementById(elId);
     if (!el) return;
@@ -21,15 +53,19 @@ function countUp(elId, target, duration = 600) {
 }
 
 function refreshDashboard() {
-    const today      = new Date().toISOString().split('T')[0];
-    const todayTrans = transactions.filter(t =>
-        t.dateISO ? t.dateISO === today : t.date.includes(new Date().toLocaleDateString('id-ID'))
-    );
-    const sales  = todayTrans.reduce((s, t) => s + t.total,  0);
-    const profit = todayTrans.reduce((s, t) => s + t.profit, 0);
+    const filtered = _getFilteredTrans();
+    const sales    = filtered.reduce((s, t) => s + t.total,  0);
+    const profit   = filtered.reduce((s, t) => s + t.profit, 0);
 
     countUp('statSales',  sales);
     countUp('statProfit', profit);
+
+    const trxEl = document.getElementById('statTrxCount');
+    if (trxEl) { trxEl.classList.remove('stat-pop'); void trxEl.offsetWidth; trxEl.classList.add('stat-pop'); trxEl.innerText = filtered.length; }
+
+    const chartTitle = document.getElementById('chartTitle');
+    if (chartTitle) chartTitle.innerText = _dashPeriod === 'week' ? 'Tren 7 Hari Terakhir' : 'Tren Hari Ini';
+
     document.getElementById('currentDate').innerText = new Date().toLocaleDateString('id-ID', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     });
@@ -40,9 +76,6 @@ function refreshDashboard() {
 
 function _renderRecent() {
     const list   = document.getElementById('recentList');
-    // FIX: sort by dateISO descending dulu sebelum ambil 3 teratas.
-    // slice(-3) tidak reliable karena transaksi baru di-push ke akhir array,
-    // sementara data lama dimuat sorted descending — hasilnya bisa tampil transaksi terlama.
     const recent = [...transactions]
         .sort((a, b) => (b.dateISO || '').localeCompare(a.dateISO || '') || (b.id || '').localeCompare(a.id || ''))
         .slice(0, 3);
@@ -71,16 +104,31 @@ function _renderChart() {
     if (window.myChart) window.myChart.destroy();
 
     const labels = [], data = [];
-    for (let i = 6; i >= 0; i--) {
-        const d    = new Date();
-        d.setDate(d.getDate() - i);
-        const dISO = d.toISOString().split('T')[0];
-        labels.push(d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }));
-        data.push(
-            transactions
-                .filter(t => t.dateISO ? t.dateISO === dISO : t.date.includes(d.toLocaleDateString('id-ID')))
-                .reduce((s, t) => s + t.total, 0)
-        );
+
+    if (_dashPeriod === 'week') {
+        for (let i = 6; i >= 0; i--) {
+            const d    = new Date();
+            d.setDate(d.getDate() - i);
+            const dISO = d.toISOString().split('T')[0];
+            labels.push(d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }));
+            data.push(
+                transactions
+                    .filter(t => t.dateISO ? t.dateISO === dISO : t.date.includes(d.toLocaleDateString('id-ID')))
+                    .reduce((s, t) => s + t.total, 0)
+            );
+        }
+    } else {
+        // Hari ini per jam
+        const todayISO   = new Date().toISOString().split('T')[0];
+        const todayTrans = transactions.filter(t => t.dateISO === todayISO);
+        for (let h = 0; h < 24; h++) {
+            labels.push(h % 4 === 0 ? `${String(h).padStart(2, '0')}:00` : '');
+            data.push(
+                todayTrans
+                    .filter(t => t.time && parseInt(t.time.split(':')[0]) === h)
+                    .reduce((s, t) => s + t.total, 0)
+            );
+        }
     }
 
     window.myChart = new Chart(ctx, {
@@ -89,15 +137,15 @@ function _renderChart() {
             labels,
             datasets: [{
                 label: 'Penjualan', data,
-                borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)',
-                borderWidth: 3, tension: 0.4, fill: true, pointRadius: 0,
+                borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)',
+                borderWidth: 2.5, tension: 0.4, fill: true, pointRadius: 0,
             }],
         },
         options: {
             plugins: { legend: { display: false } },
             scales: {
                 y: { display: false },
-                x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } },
+                x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' }, color: '#94a3b8' } },
             },
         },
     });
