@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <!-- App Styles -->
     <link rel="stylesheet" href="css/app.css">
+    <link rel="stylesheet" href="css/animations.css">
 </head>
 <body class="bg-slate-50 text-slate-900 overflow-x-hidden">
 
@@ -247,7 +248,7 @@
     </nav>
 
     <!-- FLOATING CART DRAWER -->
-    <div id="cartDrawer" class="hidden fixed bottom-24 left-4 right-4 max-w-[390px] mx-auto bg-slate-900 text-white p-4 rounded-3xl shadow-2xl flex justify-between items-center no-print z-40 transform transition-all duration-300">
+    <div id="cartDrawer" class="hidden fixed bottom-24 left-4 right-4 max-w-[390px] mx-auto bg-slate-900 text-white p-4 rounded-3xl shadow-2xl flex justify-between items-center no-print z-40 transition-all">
         <div onclick="openCheckout()">
             <p id="cartItemsInfo" class="text-[9px] font-black opacity-50 uppercase tracking-widest">0 Barang</p>
             <p id="cartTotalInfo" class="text-lg font-black">Rp 0</p>
@@ -262,6 +263,14 @@
 <!-- ╔══════════════════════════════════════════╗ -->
 <!-- ║               MODALS                    ║ -->
 <!-- ╚══════════════════════════════════════════╝ -->
+
+<!-- LOADING SPINNER MODAL -->
+<div id="loadingSpinner" style="display:none" class="fixed inset-0 bg-black/50 z-[999] flex items-center justify-center">
+    <div class="bg-white rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-4 max-w-sm">
+        <div class="w-16 h-16 rounded-full border-4 border-slate-200 border-t-blue-600 animate-spin"></div>
+        <p id="spinnerMsg" class="text-center font-semibold text-slate-700 text-sm">Memproses...</p>
+    </div>
+</div>
 
 <!-- MODAL: CHECKOUT -->
 <div id="checkoutModal" class="fixed inset-0 bg-black/60 z-[60] hidden flex items-end no-print">
@@ -292,7 +301,7 @@
         <div class="mb-5">
             <label class="text-xs font-black text-slate-400 uppercase tracking-widest block mb-3">Metode Pembayaran</label>
             <div class="flex" id="payMethodBtns">
-                <button onclick="selectPayMethod('TUNAI')" data-method="TUNAI" class="pay-method-btn flex items-center justify-center gap-2 w-full py-4 rounded-2xl border-2 border-blue-500 bg-blue-50 text-blue-700 text-[11px] font-black"><i class="fas fa-money-bill-wave text-base"></i>TUNAI</button>
+                <button onclick="selectPayMethod('TUNAI')" data-method="TUNAI" class="pay-method-btn flex items-center justify-center gap-2 w-full py-4 rounded-2xl border-2 border-blue-500 bg-blue-50 text-blue-600 font-bold text-xs"><i class="fas fa-money-bill-wave"></i> TUNAI</button>
             </div>
         </div>
         <div id="cashInputSection" class="space-y-4 mb-6">
@@ -510,11 +519,6 @@
     </div>
 </div>
 
-<!-- ╔══════════════════════════════════════════╗ -->
-<!-- ║         APP SCRIPTS (load order)        ║ -->
-<!-- ╚══════════════════════════════════════════╝ -->
-<script src="js/config.js"></script>   <!-- ⚙️  Turso URL & Token — edit untuk cloud sync -->
-<script src="js/db.js"></script>       <!-- IndexedDB offline storage -->
 <!-- MODAL: TAMBAH / EDIT PELANGGAN -->
 <div id="customerModal" class="fixed inset-0 bg-black/60 z-[60] hidden flex items-center justify-center p-6 no-print">
     <div style="animation:modalPop 0.3s cubic-bezier(0.34,1.56,0.64,1) both"
@@ -551,20 +555,26 @@
     </div>
 </div>
 
-     <!-- Turso cloud sync engine -->
-<script src="js/sync.js"></script>      <!-- Turso cloud sync engine -->
-<script src="js/api.js"></script>      <!-- offline-first API layer -->
-<script src="js/helpers.js"></script>   <!-- toast, customConfirm, customAlert, fmtInput, etc -->
-<script src="js/data.js"></script>      <!-- state: products, cart, transactions, settings -->
-<script src="js/ui.js"></script>        <!-- switchView, closeModal, toggleDarkMode, ripple -->
-<script src="js/dashboard.js"></script> <!-- countUp, refreshDashboard, chart -->
-<script src="js/pos.js"></script>       <!-- kasir, cart, checkout -->
-<script src="js/inventory.js"></script> <!-- product CRUD, export/import -->
-<script src="js/history.js"></script>   <!-- riwayat, edit trx, export CSV/JSON, import -->
-<script src="js/receipt.js"></script>   <!-- editor resi, print, bluetooth ESC/POS -->
-<script src="js/customers.js"></script> <!-- database pelanggan / member -->
-<script src="js/settings.js"></script>  <!-- settings modal + barcode scanner -->
-<script src="js/init.js"></script>      <!-- app boot, service worker, install banner -->
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║         APP SCRIPTS (load order)        ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<script src="js/config.js"></script>              <!-- ⚙️  Turso URL & Token -->
+<script src="js/db.js"></script>                  <!-- IndexedDB offline storage -->
+<script src="js/ui-components.js"></script>       <!-- 🎨 UI components (loading, validation) -->
+<script src="js/loading-state-manager.js"></script> <!-- Loading state management -->
+<script src="js/sync.js"></script>                <!-- Turso cloud sync engine -->
+<script src="js/api.js"></script>                 <!-- offline-first API layer -->
+<script src="js/helpers.js"></script>             <!-- toast, customConfirm, customAlert, etc -->
+<script src="js/data.js"></script>                <!-- state: products, cart, transactions, settings -->
+<script src="js/ui.js"></script>                  <!-- switchView, closeModal, toggleDarkMode -->
+<script src="js/dashboard.js"></script>           <!-- countUp, refreshDashboard, chart -->
+<script src="js/pos.js"></script>                 <!-- kasir, cart, checkout -->
+<script src="js/inventory.js"></script>           <!-- product CRUD, export/import -->
+<script src="js/history.js"></script>             <!-- riwayat, edit trx, export CSV/JSON -->
+<script src="js/receipt.js"></script>             <!-- editor resi, print, bluetooth -->
+<script src="js/customers.js"></script>           <!-- database pelanggan / member -->
+<script src="js/settings.js"></script>            <!-- settings modal + barcode scanner -->
+<script src="js/init.js"></script>                <!-- app boot, service worker, install banner -->
 
 </body>
 </html>
