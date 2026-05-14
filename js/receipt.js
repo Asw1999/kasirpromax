@@ -116,8 +116,8 @@ function _buildReceiptCanvas(atasNama, trxId, dateStr, total, pay, isCash) {
         <div class="border-t border-dashed border-black my-2"></div>
         <table class="w-full text-xs">
             <tr>
-                <td class="py-1 font-black text-sm">TOTAL</td>
-                <td class="py-1 text-right font-black text-sm">Rp<span id="editorGrandTotal" class="editable-field" contenteditable="true" oninput="recalcKembali(); syncTotalToStorage()" onblur="_fmtEditorSpan(this)">${total.toLocaleString('id-ID')}</span></td>
+                <td class="py-1 font-normal text-xs">TOTAL</td>
+                <td class="py-1 text-right font-normal text-xs">Rp<span id="editorGrandTotal" class="editable-field" contenteditable="true" oninput="recalcKembali(); syncTotalToStorage()" onblur="_fmtEditorSpan(this)">${total.toLocaleString('id-ID')}</span></td>
             </tr>
             ${tunaiKembaliRow}
         </table>
@@ -452,7 +452,7 @@ function buildEscPos(trxData = null) {
             text(padLine('Rp' + fmtNum(i.price) + ' x ' + i.qty, 'Rp' + fmtNum(i.price * i.qty))); lf();
         });
         dashes();
-        bold(true); text(padLine('TOTAL', 'Rp' + fmtNum(trxData.total))); lf(); bold(false);
+        text(padLine('TOTAL', 'Rp' + fmtNum(trxData.total))); lf();
         if (isCash && settings.showTunaiKembali !== false) {
             text(padLine('Tunai',   'Rp' + fmtNum(trxData.pay||0))); lf();
             text(padLine('Kembali', 'Rp' + fmtNum(Math.max(0,(trxData.pay||0) - trxData.total)))); lf();
@@ -488,7 +488,7 @@ function buildEscPos(trxData = null) {
         const editedTotal   = totalEl   ? parseRpStr(totalEl.innerText)   : t.total;
         const editedTunai   = tunaiEl   ? parseRpStr(tunaiEl.innerText)   : (t.pay||0);
         const editedKembali = kembaliEl ? parseRpStr(kembaliEl.innerText) : Math.max(0,(t.pay||0)-t.total);
-        bold(true); text(padLine('TOTAL', 'Rp' + fmtNum(editedTotal))); lf(); bold(false);
+        text(padLine('TOTAL', 'Rp' + fmtNum(editedTotal))); lf();
         if (isCashNew && settings.showTunaiKembali !== false) {
             text(padLine('Tunai',   'Rp' + fmtNum(editedTunai)));   lf();
             text(padLine('Kembali', 'Rp' + fmtNum(editedKembali))); lf();
