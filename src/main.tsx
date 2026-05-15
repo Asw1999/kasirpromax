@@ -5,14 +5,11 @@ import { useAppStore } from '@/store/appStore';
 import { runMigration } from '@/db/migrate';
 import './index.css';
 
-// POS view
-function POSView() {
-  return <div className="p-4">📊 POS - Belum diimplementasi</div>;
-}
+import { InventoryView } from '@/features/inventory';
 
-// Inventory view
-function InventoryView() {
-  return <div className="p-4">📦 Inventory - Belum diimplementasi</div>;
+// POS view (placeholder)
+function POSView() {
+  return <div className="p-4">🛒 POS - Belum diimplementasi</div>;
 }
 
 // History view
